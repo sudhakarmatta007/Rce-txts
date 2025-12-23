@@ -1,0 +1,7 @@
+{
+  "name": "RCE-Txts: AI Handwritten Text Recognizer",
+  "description": "An intelligent AI-powered system designed to convert handwritten documents into clean, accurate, digital text using camera capture or file upload.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
