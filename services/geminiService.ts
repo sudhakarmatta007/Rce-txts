@@ -1,29 +1,26 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-const SYSTEM_INSTRUCTION = `You are a production-ready AI system designed to perform handwritten text recognition and operate reliably in deployed web environments.
+const SYSTEM_INSTRUCTION = `You are a production-ready AI component integrated into a web application deployed on a cloud platform. Your responses must always be stable, predictable, and safe for frontend rendering. 
 
-CORE RECOGNITION TASK:
-Carefully analyze images containing handwritten content and convert them into accurate, readable digital text. 
-Handle messy, cursive, and uneven handwriting while preserving original structure, line breaks, and formatting.
-Prioritize accuracy over assumptions. Do not guess missing or unclear words. 
-If any character or word cannot be confidently recognized, represent it clearly as [unclear]. 
-Maintain punctuation, capitalization, and spacing exactly as they appear.
+CORE TASK:
+Carefully analyze images containing handwritten content and convert them into accurate, readable digital text. Handle messy, cursive, and uneven handwriting while preserving the original structure, line breaks, and formatting.
 
-SAFETY & DEPLOYMENT GUIDELINES:
-1. DEPLOYMENT-SAFE OPERATION: Ensure all outputs are compatible with modern frontend frameworks. Avoid generating or suggesting code that depends on unsupported browser APIs or server-only features.
-2. UI & RENDERING STABILITY: Return lightweight, structured, and safe content for rendering. Do not return excessively large outputs or malformed structures that could cause rendering failures or blank screens.
-3. FAIL GRACEFULLY: In all scenarios—success, partial success, or failure—the output must be displayable in a browser-based UI without causing crashes or console errors.
-4. ENVIRONMENT SAFETY: Do not attempt to output or handle sensitive keys or secrets. Assume the execution context handles authentication securely.
-5. IMAGE PROCESSING SAFETY: If an image is missing, corrupted, or unsupported, return a meaningful fallback response or a clear "[unclear]" indication instead of throwing internal errors.
-6. FINAL OUTPUT: Return ONLY the extracted text in plain format. Do not include explanations, comments, confidence scores, or metadata.
+RULES & CONSTRAINTS:
+1. NEVER return executable code, malformed structures, unsupported formats, or excessively large outputs that could cause rendering failures or blank screens.
+2. ALWAYS respond with valid, clean, plain text content that can be safely displayed in a browser-based user interface.
+3. PRIORITIZE accuracy over assumptions. Do not guess missing or unclear words. If a word cannot be confidently recognized, represent it clearly as [unclear].
+4. IF AN IMAGE is missing, invalid, or cannot be processed, return a short, user-friendly fallback message like "Error: Handwritten content could not be identified in the provided image."
+5. MAINTAIN punctuation, capitalization, and spacing exactly as they appear in the handwritten input.
+6. OUTPUT ONLY the extracted text. Do not include explanations, metadata, or confidence scores.
+7. FAIL GRACEFULLY: In all situations—success, partial success, or failure—you must always return a render-safe text response.
 
-This system is designed with deployment-first principles, ensuring stability, graceful failure handling, and seamless operation in cloud-hosted production environments.`;
+This system is designed with deployment-first principles, ensuring stability and a seamless user experience.`;
 
 export async function recognizeHandwriting(base64Image: string, mimeType: string): Promise<string> {
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
-    throw new Error("API Key not found in environment.");
+    return "Service temporarily unavailable: Configuration missing.";
   }
 
   const ai = new GoogleGenAI({ apiKey });
@@ -40,7 +37,7 @@ export async function recognizeHandwriting(base64Image: string, mimeType: string
             },
           },
           {
-            text: "Please extract the handwritten text from this image exactly as it appears, following all safety and output constraints.",
+            text: "Extract handwritten text from this image. Follow production-ready safety rules.",
           },
         ],
       },
@@ -52,34 +49,34 @@ export async function recognizeHandwriting(base64Image: string, mimeType: string
 
     const text = response.text;
     if (!text) {
-      throw new Error("The model failed to generate a text response. This error is caught to prevent UI crashes.");
+      return "The system could not detect any readable text in the image.";
     }
 
     return text;
   } catch (error: any) {
     console.error("Gemini OCR Error:", error);
-    throw new Error(error.message || "An unexpected error occurred during recognition. The system has failed gracefully.");
+    // Returning a safe string instead of throwing to prevent component crashes
+    return `Note: Recognition encountered an issue. (${error.message || "Unknown error"})`;
   }
 }
 
 export async function translateText(text: string, targetLanguage: 'Hindi' | 'Telugu'): Promise<string> {
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
-    throw new Error("API Key not found in environment.");
+    return text; // Return original if service config is missing
   }
 
   const ai = new GoogleGenAI({ apiKey });
 
   const prompt = `Task: Translate the following text into ${targetLanguage}. 
 
-Deployment Safety Rules:
-- Preserve original meaning, structure, and contextual accuracy.
-- If text contains "[unclear]", leave it as "[unclear]" in translation.
-- Maintain all line breaks and formatting.
-- Ensure the output is clean and safe for web rendering.
-- Output ONLY the translated text. No metadata, no explanations.
+Production Rules:
+- Preserve original meaning and formatting.
+- Keep "[unclear]" markers as they are.
+- Output ONLY the translated text.
+- Ensure the result is safe for web rendering.
 
-Text to translate:
+Text:
 ${text}`;
 
   try {
@@ -88,31 +85,30 @@ ${text}`;
       contents: prompt,
       config: {
         temperature: 0.3,
-        systemInstruction: "You are a deployment-safe translation module. Return ONLY predictable, clean strings.",
+        systemInstruction: "You are a deployment-safe translation module. Return ONLY predictable, clean strings. If translation fails, return the input text.",
       },
     });
 
-    const translatedText = response.text;
-    if (!translatedText) {
-      throw new Error("Translation failed. Returning empty string to maintain UI stability.");
-    }
-
-    return translatedText;
+    return response.text || text;
   } catch (error: any) {
     console.error("Gemini Translation Error:", error);
-    throw new Error(error.message || "Translation module encountered a stable error state.");
+    return text; // Fallback to original text on failure
   }
 }
 
 export async function fileToBase64(file: File): Promise<{ data: string; mimeType: string }> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-      const result = reader.result as string;
-      const base64Data = result.split(',')[1];
-      resolve({ data: base64Data, mimeType: file.type });
-    };
-    reader.onerror = (error) => reject(new Error("File conversion failed safely."));
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64Data = result.split(',')[1];
+        resolve({ data: base64Data, mimeType: file.type });
+      };
+      reader.onerror = () => reject(new Error("File conversion failed safely."));
+    } catch (e) {
+      reject(new Error("File processing interrupted."));
+    }
   });
 }
