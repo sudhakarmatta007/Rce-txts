@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { AppStatus, ImageFile } from './types';
-import { recognizeHandwriting, translateText, fileToBase64 } from './services/geminiService';
+//import { recognizeHandwriting, translateText, fileToBase64 } from './services/geminiService';
 import { Button } from './components/Button';
 import { FileUploader } from './components/FileUploader';
 import { RecognitionResult, LanguageKey } from './components/RecognitionResult';
@@ -53,32 +53,11 @@ const App: React.FC = () => {
     setShowCamera(false);
   }, [selectedImage]);
 
-  const handleProcess = async () => {
-    if (!selectedImage) return;
-
-    setStatus(AppStatus.PROCESSING);
-    setErrorMessage(null);
-    setRecognizedText('');
-    setTranslations({});
-    setActiveLang('original');
-
-    try {
-      const { data, mimeType } = await fileToBase64(selectedImage.file);
-      const text = await recognizeHandwriting(data, mimeType);
-      
-      // Safety check: if service returned an error-like string
-      if (text.startsWith("Service temporarily unavailable") || text.startsWith("Error:")) {
-        setErrorMessage(text);
-        setStatus(AppStatus.ERROR);
-      } else {
-        setRecognizedText(text);
-        setStatus(AppStatus.SUCCESS);
-      }
-    } catch (err: any) {
-      setErrorMessage(err.message || "A stable error state was reached. Please try a different image.");
-      setStatus(AppStatus.ERROR);
-    }
-  };
+const handleProcess = async () => {
+  // TEMPORARY SAFE MODE — AI disabled
+  setStatus(AppStatus.SUCCESS);
+  setRecognizedText("RCE-Txts frontend is rendering correctly.");
+};
 
   const handleLanguageChange = async (lang: LanguageKey) => {
     if (lang === activeLang) return;
@@ -90,8 +69,8 @@ const App: React.FC = () => {
       setIsTranslating(true);
       try {
         const target = lang === 'hindi' ? 'Hindi' : 'Telugu';
-        const translated = await translateText(recognizedText, target);
-        setTranslations(prev => ({ ...prev, [lang]: translated }));
+        //const translated = await translateText(recognizedText, target);
+        //setTranslations(prev => ({ ...prev, [lang]: translated }));
       } catch (err: any) {
         console.error("Translation Error:", err);
         setErrorMessage(`Translation to ${lang} encountered an issue. Reverting view.`);
