@@ -1,118 +1,128 @@
-
-import { GoogleGenAI } from "@google/genai";
-
-const SYSTEM_INSTRUCTION = `You are a production-ready AI component integrated into a web application deployed on a cloud platform. Your responses must always be stable, predictable, and safe for frontend rendering. 
-
-CORE TASK:
-Carefully analyze images containing handwritten content and convert them into accurate, readable digital text. Handle messy, cursive, and uneven handwriting while preserving the original structure, line breaks, and formatting.
-
-RULES & CONSTRAINTS:
-1. NEVER return executable code, malformed structures, unsupported formats, or excessively large outputs that could cause rendering failures or blank screens.
-2. ALWAYS respond with valid, clean, plain text content that can be safely displayed in a browser-based user interface.
-3. PRIORITIZE accuracy over assumptions. Do not guess missing or unclear words. If a word cannot be confidently recognized, represent it clearly as [unclear].
-4. IF AN IMAGE is missing, invalid, or cannot be processed, return a short, user-friendly fallback message like "Error: Handwritten content could not be identified in the provided image."
-5. MAINTAIN punctuation, capitalization, and spacing exactly as they appear in the handwritten input.
-6. OUTPUT ONLY the extracted text. Do not include explanations, metadata, or confidence scores.
-7. FAIL GRACEFULLY: In all situations—success, partial success, or failure—you must always return a render-safe text response.
-
-This system is designed with deployment-first principles, ensuring stability and a seamless user experience.`;
-
-function getApiKey(): string | undefined {
-  return (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : undefined);
-}
-
 export async function recognizeHandwriting(base64Image: string, mimeType: string): Promise<string> {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    return "Service temporarily unavailable: Gemini API key is missing. Please set VITE_GEMINI_API_KEY or API_KEY.";
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout limit
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: mimeType,
-              data: base64Image,
-            },
-          },
-          {
-            text: "Extract handwritten text from this image. Follow production-ready safety rules.",
-          },
-        ],
+    const response = await fetch('/api/recognize', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.1,
-      },
+      body: JSON.stringify({ base64Image, mimeType }),
+      signal: controller.signal,
     });
 
-    const text = response.text;
-    if (!text) {
-      return "The system could not detect any readable text in the image.";
+    clearTimeout(timeoutId);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Recognition failed on server.");
     }
 
-    return text;
+    return data.text || "The system could not detect any readable text in the image.";
   } catch (error: any) {
+    clearTimeout(timeoutId);
     console.error("Gemini OCR Error:", error);
-    // Returning a safe string instead of throwing to prevent component crashes
-    return `Note: Recognition encountered an issue. (${error.message || "Unknown error"})`;
+    if (error.name === 'AbortError') {
+      throw new Error("Recognition is taking too long. Please check your internet connection or click Try Again.");
+    }
+    throw new Error(error.message || "Network error. Please try again.");
   }
 }
 
 export async function translateText(text: string, targetLanguage: 'Hindi' | 'Telugu'): Promise<string> {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    return text; // Return original if service config is missing
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
-
-  const prompt = `Task: Translate the following text into ${targetLanguage}. 
-
-Production Rules:
-- Preserve original meaning and formatting.
-- Keep "[unclear]" markers as they are.
-- Output ONLY the translated text.
-- Ensure the result is safe for web rendering.
-
-Text:
-${text}`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-      config: {
-        temperature: 0.3,
-        systemInstruction: "You are a deployment-safe translation module. Return ONLY predictable, clean strings. If translation fails, return the input text.",
+    const response = await fetch('/api/translate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({ text, targetLanguage }),
+      signal: controller.signal,
     });
 
-    return response.text || text;
+    clearTimeout(timeoutId);
+    const data = await response.json();
+    return data.translatedText || text;
   } catch (error: any) {
+    clearTimeout(timeoutId);
     console.error("Gemini Translation Error:", error);
-    return text; // Fallback to original text on failure
+    return text;
   }
 }
 
 export async function fileToBase64(file: File): Promise<{ data: string; mimeType: string }> {
   return new Promise((resolve, reject) => {
-    try {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        const result = reader.result as string;
-        const base64Data = result.split(',')[1];
-        resolve({ data: base64Data, mimeType: file.type });
+    // Compress and scale large images (> 200 KB) for high-speed transfer while preserving text legibility
+    if (file.type.startsWith('image/') && file.size > 200 * 1024) {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const maxDim = 1600;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                return readRawFile(file).then(resolve).catch(reject);
+              }
+              const reader = new FileReader();
+              reader.readAsDataURL(blob);
+              reader.onload = () => {
+                const resStr = reader.result as string;
+                resolve({ data: resStr.split(',')[1], mimeType: 'image/jpeg' });
+              };
+              reader.onerror = () => reject(new Error("Image optimization failed."));
+            },
+            'image/jpeg',
+            0.88
+          );
+          return;
+        }
+        readRawFile(file).then(resolve).catch(reject);
       };
-      reader.onerror = () => reject(new Error("File conversion failed safely."));
-    } catch (e) {
-      reject(new Error("File processing interrupted."));
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        readRawFile(file).then(resolve).catch(reject);
+      };
+      img.src = url;
+      return;
     }
+
+    readRawFile(file).then(resolve).catch(reject);
+  });
+}
+
+function readRawFile(file: File): Promise<{ data: string; mimeType: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64Data = result.split(',')[1];
+      resolve({ data: base64Data, mimeType: file.type || 'image/jpeg' });
+    };
+    reader.onerror = () => reject(new Error("File conversion failed safely."));
   });
 }
