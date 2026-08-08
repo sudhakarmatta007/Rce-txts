@@ -17,10 +17,14 @@ RULES & CONSTRAINTS:
 
 This system is designed with deployment-first principles, ensuring stability and a seamless user experience.`;
 
+function getApiKey(): string | undefined {
+  return (import.meta as any).env?.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env?.API_KEY : undefined);
+}
+
 export async function recognizeHandwriting(base64Image: string, mimeType: string): Promise<string> {
-  const apiKey = process.env.API_KEY;
+  const apiKey = getApiKey();
   if (!apiKey) {
-    return "Service temporarily unavailable: Configuration missing.";
+    return "Service temporarily unavailable: Gemini API key is missing. Please set VITE_GEMINI_API_KEY or API_KEY.";
   }
 
   const ai = new GoogleGenAI({ apiKey });
@@ -61,7 +65,7 @@ export async function recognizeHandwriting(base64Image: string, mimeType: string
 }
 
 export async function translateText(text: string, targetLanguage: 'Hindi' | 'Telugu'): Promise<string> {
-  const apiKey = process.env.API_KEY;
+  const apiKey = getApiKey();
   if (!apiKey) {
     return text; // Return original if service config is missing
   }

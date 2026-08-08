@@ -1,20 +1,29 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# UNDERSTAND AI
 
-# Run and deploy your AI Studio app
+> **See it. Understand it. Text it.**
 
-This contains everything you need to run your app locally.
+An intelligent AI-powered system designed to convert handwritten documents into clean, accurate, digital text using camera capture or file upload, with support for multi-language translation.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1Ekr9E21kbV4IlXiE0eGquYzcfOW4LuFA
+## Features
+
+- **Handwriting Recognition**: Extract text from handwritten images with high accuracy.
+- **Camera & File Input**: Capture directly from your device camera or upload image files.
+- **Multi-Language Translation**: Translate recognized text into Hindi, Telugu, and more.
+- **Text Customization**: Adjust font size and bold formatting on the fly.
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
-
+**Prerequisites:** Node.js
 
 1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+   ```bash
+   npm install
+   ```
+2. Set your API key in `.env.local`:
+   ```env
+   VITE_GEMINI_API_KEY=your_gemini_api_key
+   ```
 3. Run the app:
-   `npm run dev`
+   ```bash
+   npm run dev
+   ```

@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { AppStatus, ImageFile } from './types';
-//import { recognizeHandwriting, translateText, fileToBase64 } from './services/geminiService';
+import { recognizeHandwriting, translateText, fileToBase64 } from './services/geminiService';
 import { Button } from './components/Button';
 import { FileUploader } from './components/FileUploader';
 import { RecognitionResult, LanguageKey } from './components/RecognitionResult';
@@ -53,11 +53,21 @@ const App: React.FC = () => {
     setShowCamera(false);
   }, [selectedImage]);
 
-const handleProcess = async () => {
-  // TEMPORARY SAFE MODE — AI disabled
-  setStatus(AppStatus.SUCCESS);
-  setRecognizedText("RCE-Txts frontend is rendering correctly.");
-};
+  const handleProcess = async () => {
+    if (!selectedImage) return;
+    setStatus(AppStatus.PROCESSING);
+    setErrorMessage(null);
+    try {
+      const { data, mimeType } = await fileToBase64(selectedImage.file);
+      const result = await recognizeHandwriting(data, mimeType);
+      setRecognizedText(result);
+      setStatus(AppStatus.SUCCESS);
+    } catch (err: any) {
+      console.error("Processing Error:", err);
+      setErrorMessage("Failed to process image. Please try again.");
+      setStatus(AppStatus.ERROR);
+    }
+  };
 
   const handleLanguageChange = async (lang: LanguageKey) => {
     if (lang === activeLang) return;
@@ -69,8 +79,8 @@ const handleProcess = async () => {
       setIsTranslating(true);
       try {
         const target = lang === 'hindi' ? 'Hindi' : 'Telugu';
-        //const translated = await translateText(recognizedText, target);
-        //setTranslations(prev => ({ ...prev, [lang]: translated }));
+        const translated = await translateText(recognizedText, target);
+        setTranslations(prev => ({ ...prev, [lang]: translated }));
       } catch (err: any) {
         console.error("Translation Error:", err);
         setErrorMessage(`Translation to ${lang} encountered an issue. Reverting view.`);
@@ -91,8 +101,8 @@ const handleProcess = async () => {
               <i className="fas fa-font text-white text-xl"></i>
             </div>
             <div>
-              <h1 className="font-bold text-slate-900 text-lg leading-tight tracking-tight">RCE-Txts</h1>
-              <p className="text-[9px] text-indigo-600 font-extrabold uppercase tracking-[0.2em]">Deployment Ready OCR</p>
+              <h1 className="font-bold text-slate-900 text-lg leading-tight tracking-tight">UNDERSTAND AI</h1>
+              <p className="text-[9px] text-indigo-600 font-extrabold uppercase tracking-[0.2em]">See it. Understand it. Text it.</p>
             </div>
           </div>
           
@@ -114,18 +124,21 @@ const handleProcess = async () => {
           <section className="flex flex-col gap-6">
             <div className="space-y-1">
               <h2 className="text-3xl font-black text-slate-900 tracking-tight">Handwritten Analysis</h2>
-              <p className="text-slate-500 text-sm font-medium">Reliable image-to-text conversion for production environments.</p>
+              <p className="text-slate-500 text-sm font-medium">See it. Understand it. Text it.</p>
             </div>
 
             <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl w-fit border border-slate-200">
               <button 
-                onClick={() => { setShowCamera(false); if (!selectedImage) handleClear(); }}
+                onClick={() => setShowCamera(false)}
                 className={`px-6 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${!showCamera ? 'bg-white shadow-sm text-slate-900 border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
               >
                 <i className="fas fa-images mr-2"></i>Gallery
               </button>
               <button 
-                onClick={() => { setShowCamera(true); if (!selectedImage) handleClear(); }}
+                onClick={() => {
+                  if (selectedImage) handleClear();
+                  setShowCamera(true);
+                }}
                 className={`px-6 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${showCamera ? 'bg-white shadow-sm text-slate-900 border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}
               >
                 <i className="fas fa-camera mr-2"></i>Camera
@@ -133,8 +146,11 @@ const handleProcess = async () => {
             </div>
 
             <div className="flex-grow">
-              {showCamera && !selectedImage ? (
-                <CameraCapture onCapture={handleFileSelect} onCancel={() => setShowCamera(false)} />
+              {showCamera ? (
+                <CameraCapture 
+                  onCapture={handleFileSelect} 
+                  onCancel={() => setShowCamera(false)} 
+                />
               ) : (
                 <FileUploader 
                   onFileSelect={handleFileSelect} 
@@ -231,51 +247,10 @@ const handleProcess = async () => {
         </div>
       </main>
 
-      {/* Enhanced Footer */}
-      <footer className="py-12 border-t border-slate-200 mt-20 bg-slate-50/50">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-            <div className="col-span-1 md:col-span-1">
-              <div className="flex items-center gap-2 mb-4">
-                 <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center">
-                    <i className="fas fa-font text-white text-sm"></i>
-                 </div>
-                 <span className="font-black text-slate-900 tracking-tight">RCE-Txts</span>
-              </div>
-              <p className="text-slate-500 text-xs leading-relaxed font-medium">
-                Designed for high-reliability handwritten character recognition. 
-                Full support for Hindi and Telugu translation with accessibility enhancements.
-              </p>
-            </div>
-            
-            <div className="flex flex-col gap-4">
-              <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Production Features</h4>
-              <ul className="text-xs text-slate-600 font-bold space-y-2">
-                <li><i className="fas fa-check-circle text-emerald-500 mr-2"></i>Deterministic Output</li>
-                <li><i className="fas fa-check-circle text-emerald-500 mr-2"></i>No Execution Artifacts</li>
-                <li><i className="fas fa-check-circle text-emerald-500 mr-2"></i>Graceful API Fallbacks</li>
-                <li><i className="fas fa-check-circle text-emerald-500 mr-2"></i>Safe React Rendering</li>
-              </ul>
-            </div>
-
-            <div className="flex flex-col gap-4 items-end text-right">
-              <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Connect</h4>
-              <div className="flex flex-wrap justify-end gap-x-6 gap-y-2">
-                {['Status', 'Legal', 'Privacy', 'Support'].map(link => (
-                    <a key={link} href="#" className="text-[11px] font-bold text-slate-900 hover:text-indigo-600 transition-colors uppercase tracking-widest">
-                        {link}
-                    </a>
-                ))}
-              </div>
-              <div className="flex gap-4 text-slate-400 mt-2">
-                <i className="fab fa-github hover:text-slate-900 cursor-pointer"></i>
-                <i className="fab fa-twitter hover:text-slate-900 cursor-pointer"></i>
-              </div>
-            </div>
-          </div>
-          <div className="mt-12 pt-8 border-t border-slate-200 text-center">
-             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">&copy; 2025 RCE-Txts Production Suite. Deployment safe.</p>
-          </div>
+      {/* Minimal Footer */}
+      <footer className="py-6 border-t border-slate-200 mt-8 bg-slate-50">
+        <div className="max-w-6xl mx-auto px-4 text-center">
+          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">&copy; 2026 UNDERSTAND AI</p>
         </div>
       </footer>
     </div>

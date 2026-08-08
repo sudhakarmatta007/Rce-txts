@@ -54,7 +54,7 @@ export const RecognitionResult: React.FC<RecognitionResultProps> = ({
         </div>
         <h3 className="text-lg font-bold text-slate-800 animate-pulse">Analyzing Handwriting...</h3>
         <p className="text-sm text-slate-500 mt-2 text-center max-w-xs">
-          RCE-Txts is identifying characters and structure.
+          UNDERSTAND AI is identifying characters and structure.
         </p>
       </div>
     );
